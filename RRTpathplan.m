@@ -76,8 +76,6 @@ for i=2:length(P)
     plot([P(1,i);P(1,i-1)],[P(2,i);P(2,i-1)],'g','LineWidth',3);
 end
 
-
-
 function h = circle(x,y,r,color)
 
 hold on
