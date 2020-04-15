@@ -14,7 +14,7 @@ function q = armInverseKinematics(ee_pos)
     s2 = sqrt(1-c2^2);
     q(2) = atan2(s2, c2); %plus or minus
     
-    q(1) = atan2(py,px) + atan2(L2*s2, L1 + L2*c2);
+    q(1) = atan2(py,px) - atan2(L2*s2, L1 + L2*c2);
     
     % convert to degrees
     q = rad2deg(q);
