@@ -1,15 +1,10 @@
 % Define global variables here? 
 clear all; clc; 
 
-global route;
-global edges;
-
-qs = [0;0;];
-pf = [-2;0;];
-obstacles = [-1;1;0.5;];
+qs = [0;0];
+pf = [1.1081;1.5825];
+obstacles = [-1;1;0.5];
 rrt_2dof(qs, pf, obstacles) 
-route
-edges
 
 function rrt_2dof(qs, pf, obstacles) 
 % qs as start position in configuration space
@@ -17,81 +12,96 @@ function rrt_2dof(qs, pf, obstacles)
 % Obstacles defined by x, y, rad
 
 num_iter = 0; 
-max_iter = 1000; 
-tolerance = 0.1; % in terms of workspace distance
+max_iter = 2500; 
+max_step = deg2rad(2); 
+% tolerance = 0.1; % in terms of workspace distance
 
 L1 = 1; 
 L2 = 1; 
 
 figure(1); hold on; grid on;
+
+qf = inverseKinematics(pf); 
+% qf = [deg2rad(40); deg2rad(40)];
 eeLoc = zeros(2,1);
 eeLoc(1) = L1*cos(qs(1)) + L2*cos(qs(1)+qs(2));
 eeLoc(2) = L1*sin(qs(1)) + L2*sin(qs(1)+qs(2));
-plot(eeLoc(1), eeLoc(2), 'ko', 'MarkerSize',10, 'MarkerFaceColor','k');
-plot(pf(1), pf(2), 'go', 'MarkerSize',10, 'MarkerFaceColor','g');
 
-q1_min = deg2rad(-180);
-q1_max = deg2rad(180);
+plot(eeLoc(1), eeLoc(2), 'ko', 'MarkerSize',10, 'MarkerFaceColor','k');
+
+plot(pf(1), pf(2), 'ro', 'MarkerSize',10, 'MarkerFaceColor','r');
+
+num_obstacles = size(obstacles);
+num_obstacles = num_obstacles(2);
+
+for i=1:num_obstacles
+    plot(obstacles(1), obstacles(2), 'bo', 'MarkerSize',5, 'MarkerFaceColor','b');
+end
+
+q1_min = deg2rad(0);
+q1_max = deg2rad(90);
 
 q2_min = deg2rad(0);
-q2_max = deg2rad(180);
+q2_max = deg2rad(90);
 
 %variable for storing vertices
-global route 
 route = [qs];
 %variable for storing edges
-global edges; 
-
+edges = [1];
 q_rand = zeros(2,1);
+
 while (num_iter <= max_iter)
    q_rand(1) = (q1_max - q1_min)*rand + q1_min; 
    q_rand(2) = (q2_max - q2_min)*rand + q2_min; 
+   
    if isInObs(q_rand, obstacles) == 0
        num_iter = num_iter + 1; 
-       q_near = findNearestVert(q_rand); 
-       route(:,num_iter+1) = q_rand; 
-       edges(:,num_iter) = [
-           q_near;
-           q_rand;
-       ];
-       eeLoc(1) = L1*cos(q_rand(1)) + L2*cos(q_rand(1)+q_rand(2));
-       eeLoc(2) = L1*sin(q_rand(1)) + L2*sin(q_rand(1)+q_rand(2));
-       prevLoc(1) = L1*cos(q_near(1)) + L2*cos(q_near(1)+q_near(2));
-       prevLoc(2) = L1*sin(q_near(1)) + L2*sin(q_near(1)+q_near(2));
-
-       plot([eeLoc(1); prevLoc(1);],[eeLoc(2); prevLoc(2);], 'r');
-       if norm(eeLoc - pf) < tolerance
-          break;
-       end
-       pause(0);
+       [q_near, near_ind] = findNearestVert(q_rand, route); 
+       
+       if norm(q_near - qf) < max_step
+           route = horzcat(route, qf); 
+           edges = horzcat(edges, near_ind);
+           break; 
+       end       
+       % define a q_new that will be appended
+           
+       q_new = (q_rand - q_near)/(norm(q_rand - q_near))*max_step + q_near;
+       
+       route = horzcat(route, q_new); 
+       edges = horzcat(edges, near_ind);  
+       
    end
    
 end
 
-%if num_iter < max_iter
-%    path.pos(1).x = xGoal; path.pos(1).y = yGoal;
-%    path.pos(2).x = tree.vertex(end).x; path.pos(2).y = tree.vertex(end).y;
-%    pathIndex = tree.vertex(end).indPrev;
-%    j=0;
-%    while 1
-%        path.pos(j+3).x = tree.vertex(pathIndex).x;
-%        path.pos(j+3).y = tree.vertex(pathIndex).y;
-%        pathIndex = tree.vertex(pathIndex).indPrev;
-%        if pathIndex == 1
-%            break
-%        end
-%        j=j+1;
-%    end
-%    path.pos(end+1).x = xInit; path.pos(end).y = yInit;
-%    for j = 2:length(path.pos)
-%        plot([path.pos(j).x; path.pos(j-1).x;], [path.pos(j).y; path.pos(j-1).y], 'b', 'Linewidth', 3);
-%    %     plot([tree.vertex(i).x; tree.vertex(ind).x],[tree.vertex(i).y; tree.vertex(ind).y], 'r');
-%    %     pause(0);
-%    end
-%else
-%    disp('No path found. Increase number of iterations and retry.');
-%end
-
+   % now sort out a trajectory here
+   num_nodes = size(route);
+   num_nodes = num_nodes(2);
+   
+   traj = [route(:,num_nodes)];
+   q_curr = route(:,num_nodes);
+   next_ind = edges(num_nodes); 
+   
+   while ~isequal(q_curr, qs)
+       traj = horzcat(q_curr, traj);
+       q_curr = route(:, next_ind);
+       next_ind = edges(next_ind);
+   end
+   
+   % Convert from joint to workspace
+   traj_len = size(traj);
+   traj_len = traj_len(2)
+   
+   pos_traj = [];
+   
+   for i=1:traj_len
+        x = L1*cos(traj(1,i)) + L2*cos(traj(1,i) + traj(2,i));
+        y = L1*sin(traj(1,i)) + L2*sin(traj(1,i) + traj(2,i));
+        curr_pos = [x; y];
+        pos_traj = horzcat(pos_traj, curr_pos);
+   end
+   
+   plot(pos_traj(1, :), pos_traj(2,:));
 end
 
 function inCol = isInObs(q_curr, obs)
@@ -148,17 +158,36 @@ function inCol = isInObs(q_curr, obs)
     inCol = 0; 
 end
 
-function q_near = findNearestVert(q_curr)
-    global route; 
+function [q_near, ind_near] = findNearestVert(q_curr, route)
+
     numPoints = size(route);
-    
     numPoints = numPoints(2); 
+    
     min_dist = intmax; 
     q_near = zeros(2,1);
     
     for i=1:numPoints
         if norm(q_curr - route(:,i)) < min_dist
             q_near = route(:,i);
+            ind_near = i; 
+            min_dist = norm(q_curr - route(:,i)); 
         end
     end
+end
+
+function q = inverseKinematics(pos)
+    x = pos(1);
+    y = pos(2); 
+    
+    L1 = 1; 
+    L2 = 1; 
+    
+    q = zeros(2,1);
+    % Stand in for L1 and L2
+    theta = acos((x^2 + y^2 - L1^2 - L2^2)/(-2*L1*L2)); 
+    q(2) = pi - theta; 
+    alpha = acos((L2^2 - (x^2 + y^2) - L1^2)/(-2*sqrt(x^2 + y^2)*L1)); 
+    beta = atan2(x, y);
+    
+    q(1) = pi/2 - alpha - beta;
 end
