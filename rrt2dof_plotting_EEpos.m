@@ -54,7 +54,7 @@ while (num_iter <= max_iter)
    q_rand(1) = (q1_max - q1_min)*rand + q1_min; 
    q_rand(2) = (q2_max - q2_min)*rand + q2_min; 
    
-   if isInObs(q_rand, obstacles) == 0
+   if inObs(q_rand, obstacles) == 0
        num_iter = num_iter + 1; 
        [q_near, near_ind] = findNearestVert(q_rand, route); 
        
@@ -67,6 +67,10 @@ while (num_iter <= max_iter)
            
        q_new = (q_rand - q_near)/(norm(q_rand - q_near))*max_step + q_near;
        
+       if edge_collision(obstacles, q_near, q_new) == 1
+           num_iter = num_iter - 1; 
+           continue; 
+       end
        route = horzcat(route, q_new); 
        edges = horzcat(edges, near_ind);  
        
@@ -104,58 +108,115 @@ end
    plot(pos_traj(1, :), pos_traj(2,:));
 end
 
-function inCol = isInObs(q_curr, obs)
-    % calculate the ee location in the workspace
-    L1 = 1; 
-    L2 = 1; 
+function col = inObs(pos,obs)
+
+col = 0;
+L1 = 1;
+L2 = 1;
+q = inverseKinematics(pos);
+eeLoc(1,1) = L1*cos(q(1)) + L2*cos(q(1)+q(2));
+eeLoc(2,1) = L1*sin(q(1)) + L2*sin(q(1)+q(2));
+jointLoc(1,1) = L1*cos(q(1));
+jointLoc(2,1) = L1*sin(q(1));
+baseLoc(1,1) = 0;
+baseLoc(2,1) = 0;
+
+%for i=1:length(obs(1,:)) 
+%    dist = sqrt((pos(1)-obs(1,i))^2+(pos(2)-obs(2,i))^2);
+%    %dist = norm(pos-obs(:,i));
+%    if dist < (radius + obs_rad)
+%        col = 1;
+%        return;
+%    end 
+%end
+for i=1:length(obs(1,:))
+    %checking ee and joint collisions
+    if norm(eeLoc - obs(1:2,i)) < obs(3,i) 
+        col = 1; 
+        return; 
+    elseif norm(jointLoc - obs(1:2,i)) < obs(3,i) 
+        col = 1; 
+        return; 
+    end
+    %checking collisions with middle of joints       
+    %https://math.stackexchange.com/questions/275529/check-if-line-intersects-with-circles-perimeter
     
-    eeLoc = zeros(2,1);
-    eeLoc(1) = L1*cos(q_curr(1)) + L2*cos(q_curr(1)+q_curr(2));
-    eeLoc(2) = L1*sin(q_curr(1)) + L2*sin(q_curr(1)+q_curr(2));
-    
-    jointLoc = zeros(2,1);
-    jointLoc(1) = L1*cos(q_curr(1));
-    jointLoc(2) = L1*sin(q_curr(1));
-    
-    %assuming base is located at (0,0)
-    baseLoc(1) = 0;
-    baseLoc(2) = 0;
-    
-    numObs = size(obs);
-    numObs = numObs(2);
-    
-    for i=1:numObs
-        %checking ee and joint collisions
-        if norm(eeLoc - obs(1:2,i)) < obs(3,i) 
-            inCol = 1; 
-            return; 
-        elseif norm(jointLoc - obs(1:2,i)) < obs(3,i) 
-            inCol = 1; 
-            return; 
-        end
-        %checking collisions with middle of joints       
-        %https://math.stackexchange.com/questions/275529/check-if-line-intersects-with-circles-perimeter
-        a = jointLoc(2)-eeLoc(2);
-        b = eeLoc(1)-jointLoc(1);
-        c = (jointLoc(1)-eeLoc(1))*jointLoc(2)+jointLoc(1)*(eeLoc(2)-jointLoc(2));
-        dist = abs(a*obs(1,i)+b*obs(2,i)+c) / sqrt(a^2+b^2);
-        
-        if dist < obs(3,i)
-            inCol = 1; 
-            return;
-        end
-        
-        a = baseLoc(2)-jointLoc(2);
-        b = jointLoc(1)-baseLoc(1);
-        c = (baseLoc(1)-jointLoc(1))*baseLoc(2)+baseLoc(1)*(jointLoc(2)-baseLoc(2));
-        dist = abs(a*obs(1,i)+b*obs(2,i)+c) / sqrt(a^2+b^2);
-        
-        if dist < obs(3,i)
-            inCol = 1; 
-            return;
+    ax = eeLoc(1,1);
+    ay = eeLoc(2,1);
+    bx = jointLoc(1,1);
+    by = jointLoc(2,1);
+    cx = obs(1,i);
+    cy = obs(2,i);
+    r  = obs(3,i);
+    ax = ax - cx;
+    ay = ay - cy;
+    bx = bx - cx;
+    by = by - cy;
+    c = ax^2 + ay^2 - r^2;
+    b = 2*(ax*(bx - ax) + ay*(by - ay));
+    a = (bx - ax)^2 + (by - ay)^2;
+    disc = b^2 - 4*a*c;
+    if(disc > 0)
+        %endpoint check
+        if ax > bx
+            if cx < ax && cx > bx
+                col = 1;
+                return;
+            end
+        else 
+            if cx < bx && cx > ax
+                col = 1;
+                return;
+            end
         end
     end
-    inCol = 0; 
+    
+    ax = baseLoc(1,1);
+    ay = baseLoc(2,1);
+    bx = jointLoc(1,1);
+    by = jointLoc(2,1);
+    cx = obs(1,i);
+    cy = obs(2,i);
+    r  = obs(3,i);
+    ax = ax - cx;
+    ay = ay - cy;
+    bx = bx - cx;
+    by = by - cy;
+    a = (bx - ax)^2 + (by - ay)^2;
+    b = 2*(ax*(bx - ax) + ay*(by - ay));
+    c = ax^2 + ay^2 - r^2;
+    disc = b^2 - 4*a*c;
+    if(disc > 0)
+        %endpoint check
+        if ax > bx
+            if cx < ax && cx > bx
+                col = 1;
+                return;
+            end
+        else 
+            if cx < bx && cx > ax
+                col = 1;
+                return;
+            end
+        end
+    end
+end
+col = 0; 
+end
+
+function col = edge_collision(obs,p1,p2)
+col = 0;
+resolution = 25;
+m = (p2(2) - p1(2))/(p2(1) - p1(1));
+xdiff = p2(1) - p1(1);
+for i=2:(resolution-1)
+    pos(1,1) = p1(1) + i*(xdiff/resolution);
+    pos(2,1) = p1(2) + m*(pos(1,1)-p1(1));
+    col = inObs(pos,obs);
+    if col == 1
+        return;
+    end
+end
 end
 
 function [q_near, ind_near] = findNearestVert(q_curr, route)
