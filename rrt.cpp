@@ -4,6 +4,7 @@
 #include <float.h>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 
 using namespace std; 
 
@@ -11,12 +12,43 @@ using namespace std;
 // It returns entries with that nearest vert vec(0:1), and entry with index vec(2)
 
 // fill this in later!
+L1 = 1; 
+L2 = 1; 
+
 bool inObs(vector<float> q_curr, vector<vector<float> > obstacles) {
+	// Make sure that ee and joint don't hit!
+
+	vector<float> ee_pos(2);
+	ee_pos[0] = L1*cos(q_curr[0]) + L2*cos(q_curr[0] + q_curr[1]);
+	ee_pos[0] = L1*sin(q_curr[0]) + L2*sin(q_curr[0] + q_curr[1]);
+
+	vector<float> joint_pos(2);
+	joint_pos[0] = L1*cos(q_curr[0]); 
+	joint_pos[1] = L1*sin(q_curr[0]); 
+
+	for (int i = 0; i < obstacles.size(); i++) {
+		vector<float> obs_pos(2); 
+		copy(obstacles[i].begin(), obstacles[i].begin() + 2, obs_pos.begin());
+		if (findNorm(ee_pos, obs_pos) < obstacles[i][2]) {
+			return true; 
+		} else if (findNorm(joint_pos, obs_pos) < obstacles[i][2]) {
+			return true;
+		}
+	}
 	return false; 
 }
 
 // fill this in later also!
 bool hasEdgeCollision(vector<float> q1, vector<float> q2, vector<vector<float> > obstacles) {
+	int resolution = 25; 
+
+	vector<float> p1(2);
+	vector<float> p2(2);
+
+	p1[0] = 
+
+	float m = (q2[1] - q1[1])/(q2[0] - q1[0]);
+	float xdiff = q2()
 	return false;
 }
 

@@ -94,7 +94,7 @@ end
    
    % Convert from joint to workspace
    traj_len = size(traj);
-   traj_len = traj_len(2)
+   traj_len = traj_len(2); 
    
    pos_traj = [];
    
@@ -121,14 +121,6 @@ jointLoc(2,1) = L1*sin(q(1));
 baseLoc(1,1) = 0;
 baseLoc(2,1) = 0;
 
-%for i=1:length(obs(1,:)) 
-%    dist = sqrt((pos(1)-obs(1,i))^2+(pos(2)-obs(2,i))^2);
-%    %dist = norm(pos-obs(:,i));
-%    if dist < (radius + obs_rad)
-%        col = 1;
-%        return;
-%    end 
-%end
 for i=1:length(obs(1,:))
     %checking ee and joint collisions
     if norm(eeLoc - obs(1:2,i)) < obs(3,i) 
@@ -137,68 +129,6 @@ for i=1:length(obs(1,:))
     elseif norm(jointLoc - obs(1:2,i)) < obs(3,i) 
         col = 1; 
         return; 
-    end
-    %checking collisions with middle of joints       
-    %https://math.stackexchange.com/questions/275529/check-if-line-intersects-with-circles-perimeter
-    
-    ax = eeLoc(1,1);
-    ay = eeLoc(2,1);
-    bx = jointLoc(1,1);
-    by = jointLoc(2,1);
-    cx = obs(1,i);
-    cy = obs(2,i);
-    r  = obs(3,i);
-    ax = ax - cx;
-    ay = ay - cy;
-    bx = bx - cx;
-    by = by - cy;
-    c = ax^2 + ay^2 - r^2;
-    b = 2*(ax*(bx - ax) + ay*(by - ay));
-    a = (bx - ax)^2 + (by - ay)^2;
-    disc = b^2 - 4*a*c;
-    if(disc > 0)
-        %endpoint check
-        if ax > bx
-            if cx < ax && cx > bx
-                col = 1;
-                return;
-            end
-        else 
-            if cx < bx && cx > ax
-                col = 1;
-                return;
-            end
-        end
-    end
-    
-    ax = baseLoc(1,1);
-    ay = baseLoc(2,1);
-    bx = jointLoc(1,1);
-    by = jointLoc(2,1);
-    cx = obs(1,i);
-    cy = obs(2,i);
-    r  = obs(3,i);
-    ax = ax - cx;
-    ay = ay - cy;
-    bx = bx - cx;
-    by = by - cy;
-    a = (bx - ax)^2 + (by - ay)^2;
-    b = 2*(ax*(bx - ax) + ay*(by - ay));
-    c = ax^2 + ay^2 - r^2;
-    disc = b^2 - 4*a*c;
-    if(disc > 0)
-        %endpoint check
-        if ax > bx
-            if cx < ax && cx > bx
-                col = 1;
-                return;
-            end
-        else 
-            if cx < bx && cx > ax
-                col = 1;
-                return;
-            end
-        end
     end
 end
 col = 0; 
