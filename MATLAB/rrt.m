@@ -148,12 +148,12 @@ for i=1:length(obs(1,:))
     if(disc > 0)
         %endpoint check
         if ax > bx
-            if cx < ax && cx > bx
+            if 0 < ax && 0 > bx % changed from cx
                 col = 1;
                 return;
             end
         else 
-            if cx < bx && cx > ax
+            if 0 < bx && 0 > ax
                 col = 1;
                 return;
             end
@@ -178,12 +178,12 @@ for i=1:length(obs(1,:))
     if(disc > 0)
         %endpoint check
         if ax > bx
-            if cx < ax && cx > bx
+            if 0 < ax && 0 > bx
                 col = 1;
                 return;
             end
         else 
-            if cx < bx && cx > ax
+            if 0 < bx && 0 > ax
                 col = 1;
                 return;
             end
