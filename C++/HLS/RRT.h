@@ -79,18 +79,19 @@ SC_MODULE(RRT)
       wait();
     }
     int NUMBER_OBS = i;
+	printf("Completed inputting obs \n");
 
     int num_iter = 0;
     int max_iter = MAX_NUMBER_NODES;
-    InputType max_step = 0.05; // everything will be in radians!
+    InputType max_step = 0.075; // everything will be in radians!
     InputType L1 = 1;
     InputType L2 = 1;
 
-    InputType q1_max = 180*(PI/180);
-    InputType q1_min = -180*(PI/180);
+    InputType q1_max = PI/2;
+    InputType q1_min = 0;
 
-    InputType q2_max = 180*(PI/180);
-    InputType q2_min = 0*(PI/180);
+    InputType q2_max = PI/2;
+    InputType q2_min = 0;
 
     InputType q_rand[2];
     InputType p_rand[2];
@@ -112,6 +113,8 @@ SC_MODULE(RRT)
     edges[0] = 1;
 
     while (num_iter <= max_iter) {
+	  // printf("Got into main loop");
+	  // printf("Current iteration: %d \n", num_iter);
       q_rand[0] = (q1_max - q1_min)*(rand() % 100)/100 + q1_min;
       q_rand[1] = (q2_max - q2_min)*(rand() % 100)/100 + q2_min;
 
@@ -156,13 +159,19 @@ SC_MODULE(RRT)
         // compute this from q_near, q_rand, and max_step
         InputType q_new[2];
         InputType p_new[2];
-        InputType magnitude = findNorm(p_rand, p_near);
-        if(magnitude > 0.002) {
-          p_new[0] = ((p_rand[0] - p_near[0])/magnitude)*max_step + p_near[0];
-          p_new[1] = ((p_rand[1] - p_near[1])/magnitude)*max_step + p_near[1];
+        InputType magnitude = findNorm(q_rand, q_near);
+        //if (magnitude > 0.002)
+          q_new[0] = ((q_rand[0] - q_near[0])/magnitude)*max_step + q_near[0];
+          q_new[1] = ((q_rand[1] - q_near[1])/magnitude)*max_step + q_near[1];
 
-          inverseKin(p_new, q_new);
+          // inverseKin(p_new, q_new);
+		  ac_math::ac_sin_cordic(q_new[0], s1);
+		  ac_math::ac_cos_cordic(q_new[0], c1);
+		  ac_math::ac_sin_cordic(q_new[0]+q_new[1], s2);
+		  ac_math::ac_cos_cordic(q_new[0]+q_new[1], c2);
 
+		  p_new[0] = L1*c1 + L2*c2;
+		  p_new[1] = L1*s1 + L2*s2; 
           // Don't push_back if we hit in process
           if (hasEdgeCollision(p_new, p_near, obs, NUMBER_OBS)) {
             continue;
@@ -173,7 +182,7 @@ SC_MODULE(RRT)
           route_size++;
 
 
-        }
+        //}
       }
       wait();
     }
@@ -181,6 +190,7 @@ SC_MODULE(RRT)
     // Now that we've got the total graph, pick out a trajectory
     // num_iter total number of nodes
     if (num_iter <= max_iter) {
+	  // printf("Making traj \n");
       InputType trajectory;
       trajectory = route[route_size-1][0];
       configurations[0].Push(trajectory);
@@ -195,6 +205,7 @@ SC_MODULE(RRT)
       int i = 1;
       while (q_curr[0] != qs[0] || q_curr[1] != qs[1] ) {
         //pass out trajectories
+		// printf("Found the beginning \n");
         trajectory = route[next_ind][0];
         configurations[0].Push(trajectory);
         trajectory = route[next_ind][1];
@@ -205,7 +216,9 @@ SC_MODULE(RRT)
         i++;
         wait();
       }
-    }
+    } else {
+		printf("Didn't get to the target");
+	}
   }
   //finding nearest node
   void findNearestVert(InputType p_curr[2], InputType route[MAX_NUMBER_NODES][2], InputType node[3], int* near_ind, int route_size) {

@@ -62,12 +62,12 @@ SC_MODULE (Source) {
     start_position_list[0] = 0;
     start_position_list[1] = 0;
     RRT::InputType end_position_list[2];
-    end_position_list[0] = PI;
+    end_position_list[0] = PI/4;
     end_position_list[1] = 0;
     int N = 1; // N == number of obstacles
     RRT::InputType obs_list[N][3];
-    obs_list[0][0] = 1;
-    obs_list[0][1] = 1;
+    obs_list[0][0] = 2;
+    obs_list[0][1] = 2;
     obs_list[0][2] = 0.5;
 
     // Wait for initial reset
@@ -164,7 +164,7 @@ SC_MODULE (testbench) {
     wait(1, SC_NS);
     cout << "@" << sc_time_stamp() << " Deasserting Reset " << endl ;
     rst = 1;
-    wait(1000000,SC_NS);
+    wait(2000000,SC_NS);
     cout << "@" << sc_time_stamp() << " Stop " << endl ;
     sc_stop();
   }
