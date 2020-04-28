@@ -1,4 +1,5 @@
 #include <vector>
+#include <vector>
 #include <math.h>
 #include <stdlib.h>
 #include <float.h>
@@ -8,59 +9,51 @@
 #include <time.h>
 
 using namespace std;
-using namespace std::chrono; 
 
 // findNearestVert takes find the closest configuration that we've seen before to q_curr
 // It returns entries with that nearest vert vec(0:1), and entry with index vec(2)
-
-// fill this in later!
-
 #define Q1RANGE 90
 #define Q2RANGE 90
 #define Q1MIN 0
-#define Q2MIN 0 
+#define Q2MIN 0
 #define PI 3.14159
-
+// fill this in later!
 float L1 = 1;
 float L2 = 1;
 
-bool colMemo[Q1RANGE + 1][Q2RANGE + 1]; 
-bool colValid[Q1RANGE + 1][Q2RANGE + 1]; 
-
-int numColsComp; 
-int numColsCall; 
+bool colValid[Q1RANGE][Q2RANGE]; 
+bool colMemo[Q1RANGE][Q2RANGE]; 
 
 vector<float> inverseKin(vector<float> ee_pos) {
 	float px = ee_pos[0];
   	float py = ee_pos[1];
 	vector<float> q(2);
+
 	float c2 = (pow(px, 2) + pow(py, 2) - pow(L1, 2) - pow(L2, 2)) / (-2*L1*L2);
   	float s2 = sqrt(1-pow(c2, 2));
-  	// Spit this out in degrees
-  	float beta = atan2(px,py);
-  	float vec_mag = pow(pow(px, 2) + pow(py, 2), 0.5); 
-  	float alpha = (pow(L2, 2) - (pow(px, 2) + pow(py, 2)) - pow(L1,2))/(-2*L1*vec_mag);
-
-	q[0] = (PI/2 - alpha - beta)*(180/PI);
- 	q[1] = 180-acos(c2)*(180/PI); //plus or minus
+  	float beta = acos((pow(L2,2) - (pow(px,2) + pow(py,2)))/(-2*L1*sqrt(pow(px,2) + pow(py,2)))); 
+  	float alpha = atan(px/py);
+	q[0] = PI - acos(c2);
+ 	// q[1] = atan2(s2, c2); //plus or minus
+ 	q[1] = PI/2 - alpha - beta; 
 	// check joint limits?
+	// cout << "q[0]: " << q[0] << endl; 
+
+	//cout << "alpha: " << alpha << endl; 
+	//cout << "beta: " << beta << endl; 
+	//cout << "q[1]: " << q[1] << endl; 
 	return q;
 }
 
-bool inObs(vector<float> p_curr, vector<float> q_curr, vector<vector<float> > obstacles) {
+bool inObs(vector<float> p_curr, vector<vector<float> > obstacles) {
 	// Make sure that ee and joint don't hit!
 
-	// Passing the joint vector, don't need to call this!
-	// vector<float> q_curr(2);
-	// vector<float> temp(2);
-	// temp = inverseKin(p_curr);
-	// copy(temp.begin(), temp.begin() + 2, q_curr.begin());
+	vector<float> q_curr(2);
+	vector<float> temp(2);
+	temp = inverseKin(p_curr);
+	copy(temp.begin(), temp.begin() + 2, q_curr.begin());
 
 	vector<float> ee_pos(2);
-
-	q_curr[0] = q_curr[0]*(PI/180);
-	q_curr[1] = q_curr[1]*(PI/180); 
-
 	ee_pos[0] = L1*cos(q_curr[0]) + L2*cos(q_curr[0] + q_curr[1]);
 	ee_pos[1] = L1*sin(q_curr[0]) + L2*sin(q_curr[0] + q_curr[1]);
 
@@ -138,34 +131,7 @@ bool inObs(vector<float> p_curr, vector<float> q_curr, vector<vector<float> > ob
 
 // fill this in later also!
 bool hasEdgeCollision(vector<float> p1, vector<float> p2, vector<float> q_curr, vector<vector<float> > obstacles) {
-
-	// convert to degrees
-	vector<float> q_deg(2);
-	q_deg[0] = q_curr[0];
-	q_deg[1] = q_curr[1];
-
-	// look in the memo
-	int q1_ind = round(q_deg[0]) - Q1MIN; 
-	int q2_ind = round(q_deg[1]) - Q2MIN; 
-
-	// This is really not fun
-	if (isnan(q_deg[0]) || isnan(q_deg[1])) 
-		return true; 
-
-	cout << "q1 in degrees: " << round(q_deg[0]) << endl; 
-	cout << "q2 in degrees: " << round(q_deg[1]) << endl; 
-
-	cout << "q1_ind: " << q1_ind << endl; 
-	cout << "q2_ind: " << q2_ind << endl; 
-
-	numColsCall++; 
-
-	if (colValid[q1_ind][q2_ind]) {
-		return colMemo[q1_ind][q2_ind];
-	}
-
-	numColsComp++; 
-
+	// cout << "In hasEdgeCollision" << endl; 
 	int resolution = 25;
 
 	float m = (p2[1] - p1[1])/(p2[0] - p1[0]);
@@ -175,11 +141,17 @@ bool hasEdgeCollision(vector<float> p1, vector<float> p2, vector<float> q_curr, 
   	p_[0] = p1[0];
 	p_[1] = p1[1];
 
+	int q1_ind = (int) roundf(q_curr[0]*(180/PI)) - Q1MIN;
+	int q2_ind = (int) roundf(q_curr[1]*(180/PI)) - Q2MIN;
+
+	// cout << "q1_ind: " << q1_ind << endl; 
+	// cout << "q2_ind: " << q2_ind << endl; 
+
 	for (int i = 2; i < (resolution); i++) {
 	    p_[0] = p1[0] + i*(xdiff/resolution);
 	    p_[1] = p1[1] + m*(p_[0]-p1[0]);
 
-	    if (inObs(p_ , q_curr, obstacles) == true) {
+	    if (inObs(p_ , obstacles) == true) {
 	    	colValid[q1_ind][q2_ind] = true; 
 	    	colMemo[q1_ind][q2_ind] = true; 
 	        return true;
@@ -231,40 +203,42 @@ vector<float> findNearestVert(vector<float> p_curr, vector<vector<float> > route
 void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	int num_iter = 0;
 	int max_iter = 5000;
-	float max_step = 1; // everything will be in radians!
+	float max_step = 0.1;
 
-	float q1_max = Q1RANGE + Q1MIN;
-	float q1_min = Q1MIN;
+	float q1_max = PI/2;
+	float q1_min = 0;
 
-	float q2_max = Q2RANGE + Q2MIN;
-	float q2_min = Q2MIN;
+	float q2_max = PI/2;
+	float q2_min = 0;
 
 	vector<float> q_rand(2);
 	vector<float> p_rand(2);
   	vector<float> pf(2);
-	pf[0] = L1*cos(qf[0]*(PI/180)) + L2*cos((qf[0] + qf[1])*(PI/180));
-	pf[1] = L1*sin(qf[0]*(PI/180)) + L2*sin((qf[0] + qf[1])*(PI/180));
+	pf[0] = L1*cos(qf[0]) + L2*cos(qf[0] + qf[1]);
+	pf[1] = L1*sin(qf[0]) + L2*sin(qf[0] + qf[1]);
 
 	vector<vector<float> > route;
 	route.push_back(qs);
 
 	vector<int> edges;
 	edges.push_back(1);
+	int num_loop = 0; 
 
 	while (num_iter <= max_iter) {
-		q_rand[0] = ((q1_max - q1_min)*(rand() % 100)/100 + q1_min);
-		q_rand[1] = ((q2_max - q2_min)*(rand() % 100)/100 + q2_min);
+		// cout << "num_iter: " << num_iter << endl; 
+		// cout << "num_loop: " << num_loop << endl; 
 
-		//cout << "q1 rand: " << q_rand[0]<< endl; 
-		//cout << "q2 rand: " << q_rand[1]<< endl; 
+		// num_loop++; 
+		q_rand[0] = (q1_max - q1_min)*(rand() % 100)/100 + q1_min;
+		q_rand[1] = (q2_max - q2_min)*(rand() % 100)/100 + q2_min;
 
-		p_rand[0] = L1*cos(q_rand[0]*(PI/180)) + L2*cos((q_rand[0] + q_rand[1])*(PI/180));
-		p_rand[1] = L1*sin(q_rand[0]*(PI/180)) + L2*sin((q_rand[0] + q_rand[1])*(PI/180));
+		// cout << "q_rand[0]: " << q_rand[0] << endl; 
+		// cout << "q_rand[1]: " << q_rand[1] << endl; 
 
-		// cout << p_rand[0] << "\n";
-		// cout << p_rand[1] << "\n";
+		p_rand[0] = L1*cos(q_rand[0]) + L2*cos(q_rand[0] + q_rand[1]);
+		p_rand[1] = L1*sin(q_rand[0]) + L2*sin(q_rand[0] + q_rand[1]);
 
-		if (!inObs(p_rand, q_rand, obs)) {
+		if (!inObs(p_rand, obs)) {
 			num_iter++;
 			vector<float> nearVertAndInd = findNearestVert(p_rand, route);
 			vector<float> q_near(2);
@@ -274,14 +248,35 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 			copy(nearVertAndInd.begin(), nearVertAndInd.begin() + 2, q_near.begin());
 			int near_ind = (int) nearVertAndInd[2];
 
-			p_near[0] = L1*cos(q_near[0]*(PI/180)) + L2*cos((q_near[0] + q_near[1])*(PI/180));
-			p_near[1] = L1*sin(q_near[0]*(PI/180)) + L2*sin((q_near[0] + q_near[1])*(PI/180));
+			p_near[0] = L1*cos(q_near[0]) + L2*cos(q_near[0] + q_near[1]);
+			p_near[1] = L1*sin(q_near[0]) + L2*sin(q_near[0] + q_near[1]);
 			// if close enough, then we're done! :)
 			if (findNorm(p_near, pf) < max_step) {
-				if (hasEdgeCollision(p_near, pf, qf, obs)) {
-					num_iter--;
-					continue;
+				int q1_ind = (int) roundf(q_near[0]*(180/PI)) - Q1MIN;
+				int q2_ind = (int) roundf(q_near[1]*(180/PI)) - Q2MIN;
+
+				if (isnan(q1_ind) || isnan(q2_ind)) {
+					num_iter--; 
+					continue; 
 				}
+
+					if (hasEdgeCollision(p_near, pf, q_near, obs)) {
+						num_iter--;
+						continue;
+					}	
+
+				// cout << "About to touch memo" << endl; 
+				// if (!colValid[q1_ind][q2_ind]) {
+				// 	// this should fill in the memo
+				// 	if (hasEdgeCollision(p_near, pf, q_near, obs)) {
+				// 		num_iter--;
+				// 		continue;
+				// 	}					
+				// } else if (colMemo[q1_ind][q2_ind]) {
+				// 	num_iter--;
+				// 	continue; 
+				// }
+
 				route.push_back(qf);
 				edges.push_back(near_ind);
 				break;
@@ -298,13 +293,50 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 
 				temp = inverseKin(p_new);
 				copy(temp.begin(), temp.begin() + 2, q_new.begin());
-				//cout << p_new[0] << "," << p_new[1];
-				//cout << q_new[0] << "," << q_new[1];
+
 				// Don't push_back if we hit in process
-				if (hasEdgeCollision(p_new, p_near, q_new, obs)) {
+				if (q_new[0] > q1_max || q_new[0] < q1_min) {
+					cout << "q1 oobs" << endl;
+					num_iter--; 
+					continue; 
+				}
+
+				if (q_new[1] > q2_max || q_new[1] < q2_min) {
+					cout << "q2 oobs" << endl; 
+					num_iter--; 
+					continue; 
+				}
+
+				if (isnan(q_new[0]) || isnan(q_new[1])) {
+					num_iter--; 
+					continue; 
+				}
+
+				// cout << "q_new[0]: " << q_new[0] << endl;
+				// cout << "q_new[1]: " << q_new[1] << endl;  
+
+				int q1_ind = (int) roundf(q_new[0]*(PI/180)) - Q1MIN; 
+				int q2_ind = (int) roundf(q_new[1]*(PI/180)) - Q2MIN; 
+
+
+				// cout << "In if mag > loop, q1_ind: " << q1_ind << endl; 
+				// cout << "In if mag > loop, q2_ind: " << q2_ind << endl; 
+
+				if (hasEdgeCollision(p_new, q_new, p_near, obs)) {
 					num_iter--;
 					continue;
-				}
+				}	
+				// cout << "About to touch memo" << endl; 
+				// if (!colValid[q1_ind][q2_ind]) {
+				// 	if (hasEdgeCollision(p_new, q_new, p_near, obs)) {
+				// 		num_iter--;
+				// 		continue;
+				// 	}					
+				// } else if (colMemo[q1_ind][q2_ind]) {
+				// 	num_iter--;
+				// 	continue; 
+				// }
+
 				route.push_back(q_new);
 				edges.push_back(near_ind);
 
@@ -348,10 +380,12 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	  float ee_pos_0;
 		float ee_pos_1;
 		for (int j = traj_len-1; j > -1; j--) {
-			ee_pos_0 = L1*cos(trajectory[j][0]*(PI/180)) + L2*cos((trajectory[j][0] + trajectory[j][1])*(PI/180));
-			ee_pos_1 = L1*sin(trajectory[j][0]*(PI/180)) + L2*sin((trajectory[j][0] + trajectory[j][1])*(PI/180));
+			ee_pos_0 = L1*cos(trajectory[j][0]) + L2*cos(trajectory[j][0] + trajectory[j][1]);
+			ee_pos_1 = L1*sin(trajectory[j][0]) + L2*sin(trajectory[j][0] + trajectory[j][1]);
 			trajfile2 << ee_pos_0 << "," << ee_pos_1 << "\n";
 	 	}
+
+	 	cout << "Done" << endl; 
   } else {
 		cout << "Final position not reached.\n";
 	}
@@ -360,35 +394,41 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 int main() {
 	srand (time(NULL));
 	vector<float> qs;
-
-	cout << "Defined PI: " << PI << endl; 
-
 	qs.push_back(0);
 	qs.push_back(0);
 
 	vector<float> qf;
-	qf.push_back(45);
+	qf.push_back(PI/4);
 	qf.push_back(0);
 
 	vector<vector<float> > obstacles;
 	vector<float> obs1;
-	obs1.push_back(1);
-	obs1.push_back(1);
+	obs1.push_back(2);
+	obs1.push_back(2);
 	obs1.push_back(0.25);
 	obstacles.push_back(obs1);
 
-	numColsCall = 0; 
-	numColsComp = 0; 
-	// Initialize all entries in the memo to be invalid
-	for (int i = 0; i < Q1RANGE + 1; i++) {
-		for (int j = 0; j < Q2RANGE + 1; j++) {
-			colValid[i][j] = false; 
-			colMemo[i][j] = false;
+	for (int i = 0; i < Q1RANGE; i++) {
+		for (int j = 0; j < Q2RANGE; j++) {
+			colValid[i][j] = false;
+			colMemo[i][j] = false;  
 		}
 	}
 
 	rrt(qs, qf, obstacles);
-	cout << "numColsCall: " << numColsCall << endl; 
-	cout << "numColsComp: " << numColsComp << endl; 
+
+	ofstream memo;
+	ofstream memoVal; 
+	memo.open("memo.csv");
+	memoVal.open("memoVal.csv");	
+	for (int row = 0; row < Q1RANGE; row++) {
+		for (int col = 0; col < Q2RANGE; col++) {
+			memo << colMemo[row][col] << ","; 
+			memoVal << colValid[row][col] << ","; 
+		}
+		memo << "\n"; 
+		memoVal << "\n"; 
+	}
+
 	return 0;
 }
