@@ -20,8 +20,8 @@
 
 #ifndef CONSTANTS
 #define CONSTANTS
-#define MAX_NUMBER_OBS 20
-#define MAX_NUMBER_NODES 15000
+#define MAX_NUMBER_OBS 10
+#define MAX_NUMBER_NODES 7500
 #define PI 3.1415926535
 #endif
 
@@ -37,12 +37,14 @@ SC_MODULE(RRT)
   typedef ac_fixed<62, 30, true> OutputType;
   typedef ac_fixed<62, 30, false> UnsignedType;
   typedef ac_complex<InputType> ComplexType;
+  typedef NVINT32 RandType;
 
 
   Connections::In<InputType>   start_position[2];
   Connections::In<InputType>   end_position[2];
   Connections::In<InputType>   obstacles[3]; // need to read in obs 1 at a time
-  Connections::Out<OutputType>  configurations[2]; // need to read out configs 1 at a time
+  Connections::In<RandType>    rand_seed; // need to read in obs 1 at a time
+  Connections::Out<OutputType> configurations[2]; // need to read out configs 1 at a time
 
   SC_HAS_PROCESS(RRT);
   RRT(sc_module_name name_) : sc_module(name_) {
@@ -52,193 +54,202 @@ SC_MODULE(RRT)
   }
 
   void run() {
-    for (int i=0; i < 2; i++) {
-      start_position[i].Reset();
-      end_position[i].Reset();
-      configurations[i].Reset();
-    }
-    for (int i=0; i < 3; i++) {
-      obstacles[i].Reset();
-    }
-
-    InputType qs[2];
-    InputType tmp;
-    qs[0] = start_position[0].Pop();
-    qs[1] = start_position[1].Pop();
-
-    InputType qf[2];
-    qf[0] = end_position[0].Pop();
-    qf[1] = end_position[1].Pop();
-
-    InputType obs[MAX_NUMBER_OBS][3];
-    int i = 0;
     wait();
-    while(obstacles[0].PopNB(tmp)) {
-      obs[i][0] = tmp;
-      obs[i][1] = obstacles[1].Pop();
-      obs[i][2] = obstacles[2].Pop();
-      i++;
+    while(1) {
+      // rand_seed.Reset();
+      // for (int i=0; i < 2; i++) {
+      //   start_position[i].Reset();
+      //   end_position[i].Reset();
+      //   configurations[i].Reset();
+      // }
+      // for (int i=0; i < 3; i++) {
+      //   obstacles[i].Reset();
+      // }
+
+      InputType qs[2];
+      InputType tmp;
+      qs[0] = start_position[0].Pop();
+      qs[1] = start_position[1].Pop();
+
+      InputType qf[2];
+      qf[0] = end_position[0].Pop();
+      qf[1] = end_position[1].Pop();
+
+      RandType rnd_seed = rand_seed.Pop();
+
+      InputType obs[MAX_NUMBER_OBS][3];
+      int i = 0;
       wait();
-    }
-    int NUMBER_OBS = i;
-    // int num_iter = 0;
-    int max_iter = MAX_NUMBER_NODES;
-    InputType max_step = 0.35; // everything will be in radians!
-    // InputType L1 = 1;
-    // InputType L2 = 1;
-
-    InputType q1_max = PI;
-    InputType q1_min = -PI;
-
-    InputType q2_max = PI;
-    InputType q2_min = 0;
-
-    InputType q_rand[2];
-    // InputType p_rand[2];
-    // InputType pf[2];
-    // InputType s1,s2,c1,c2;
-    // ac_math::ac_sin_cordic(qf[0], s1);
-    // ac_math::ac_cos_cordic(qf[0], c1);
-    // ac_math::ac_sin_cordic(qf[0]+qf[1], s2);
-    // ac_math::ac_cos_cordic(qf[0]+qf[1], c2);
-    // pf[0] = L1*c1 + L2*c2;
-    // pf[1] = L1*s1 + L2*s2;
-
-
-    InputType route[MAX_NUMBER_NODES][2];
-    route[0][0] = qs[0];
-    route[0][1] = qs[1];
-    //int route_size = 1;
-    int num_iter = 1;
-    int edges[MAX_NUMBER_NODES];
-    edges[0] = 1;
-
-    while (num_iter <= max_iter) {
-	    //printf("Got into main loop");
-      q_rand[0] = (q1_max - q1_min)*(rand() % 100)/100 + q1_min;
-      q_rand[1] = (q2_max - q2_min)*(rand() % 100)/100 + q2_min;
-
-      // InputType s1,s2,c1,c2;
-      // ac_math::ac_sin_cordic(q_rand[0], s1);
-      // ac_math::ac_cos_cordic(q_rand[0], c1);
-      // ac_math::ac_sin_cordic(q_rand[0]+q_rand[1], s2);
-      // ac_math::ac_cos_cordic(q_rand[0]+q_rand[1], c2);
-      // p_rand[0] = L1*c1 + L2*c2;
-      // p_rand[1] = L1*s1 + L2*s2;
-
-      // InputType q_test[2];
-      // q_test[0] = 0;
-      // q_test[1] = 0;
-      // InputType p_test[2];
-      // p_test[0] = 2;
-      // p_test[1] = 0;
-      // cout << q_test[0] << ", " << q_test[1] << endl;
-      // inverseKin(p_test, q_test);
-      // cout << q_test[0] << ", " << q_test[1] << endl;
-
-      // cout << q_rand[0] << ", " << q_rand[1] << endl;
-      // inverseKin(p_rand, q_rand);
-      // cout << q_rand[0] << ", " << q_rand[1] << endl;
-
-      if (!inObs(q_rand, obs, NUMBER_OBS)) { // pass q_rand
-        InputType nearVertAndInd[2];
-        int near_ind;
-        findNearestVert(q_rand, route, nearVertAndInd, &near_ind, num_iter);
-        InputType q_near[2];
-        // InputType p_near[2];
-        q_near[0] = nearVertAndInd[0];
-        q_near[1] = nearVertAndInd[1];
-
-        // InputType s1,s2,c1,c2;
-        // ac_math::ac_sin_cordic(q_near[0], s1);
-        // ac_math::ac_cos_cordic(q_near[0], c1);
-        // ac_math::ac_sin_cordic(q_near[0]+q_near[1], s2);
-        // ac_math::ac_cos_cordic(q_near[0]+q_near[1], c2);
-        // p_near[0] = L1*c1 + L2*c2;
-        // p_near[1] = L1*s1 + L2*s2;
-
-        // if close enough, then we're done! :)
-        if (findNorm(q_near, qf) < max_step) {
-          if (hasEdgeCollision(q_near, qf, obs, NUMBER_OBS)) {
-            continue;
-          }
-          route[num_iter][0] = qf[0];
-          route[num_iter][1] = qf[1];
-          edges[num_iter] = near_ind;
-          //route_size++;
-          num_iter++;
-          break;
-        }
-        // compute this from q_near, q_rand, and max_step
-        InputType q_new[2];
-        // InputType p_new[2];
-        InputType magnitude = findNorm(q_rand, q_near);
-        if (magnitude > 0.0001) {
-          if (magnitude > max_step) {
-            q_new[0] = ((q_rand[0] - q_near[0])/magnitude)*max_step + q_near[0];
-            q_new[1] = ((q_rand[1] - q_near[1])/magnitude)*max_step + q_near[1];
-          } else {
-            q_new[0] = q_rand[0];
-            q_new[1] = q_rand[1];
-          }
-
-		      // ac_math::ac_sin_cordic(q_new[0], s1);
-		      // ac_math::ac_cos_cordic(q_new[0], c1);
-		      // ac_math::ac_sin_cordic(q_new[0]+q_new[1], s2);
-		      // ac_math::ac_cos_cordic(q_new[0]+q_new[1], c2);
-          //
-		      // p_new[0] = L1*c1 + L2*c2;
-		      // p_new[1] = L1*s1 + L2*s2;
-          // Don't push_back if we hit in process
-          if (hasEdgeCollision(q_new, q_near, obs, NUMBER_OBS)) {
-            continue;
-          }
-          // inverseKin(p_new, q_new);
-          route[num_iter][0] = q_new[0];
-          route[num_iter][1] = q_new[1];
-          edges[num_iter] = near_ind;
-          //route_size++;
-          num_iter++;
-        }
-      }
-      wait();
-    }
-
-    // Now that we've got the total graph, pick out a trajectory
-    // num_iter total number of nodes
-    if (num_iter <= max_iter) {
-	  // printf("Making traj \n");
-      InputType trajectory;
-      trajectory = route[num_iter-1][0];
-      configurations[0].Push(trajectory);
-      trajectory = route[num_iter-1][1];
-      configurations[1].Push(trajectory);
-
-      int next_ind = edges[num_iter-1];
-      InputType q_curr[2];
-      q_curr[0] = route[num_iter-1][0];
-      q_curr[1] = route[num_iter-1][1];
-
-      int i = 1;
-      while (q_curr[0] != qs[0] || q_curr[1] != qs[1] ) {
-        //pass out trajectories
-	    	// printf("Found the beginning \n");
-        trajectory = route[next_ind][0];
-        configurations[0].Push(trajectory);
-        trajectory = route[next_ind][1];
-        configurations[1].Push(trajectory);
-        q_curr[0] = route[next_ind][0];
-        q_curr[1] = route[next_ind][1];
-        next_ind = edges[next_ind];
+      while(obstacles[0].PopNB(tmp)) {
+        obs[i][0] = tmp;
+        obs[i][1] = obstacles[1].Pop();
+        obs[i][2] = obstacles[2].Pop();
         i++;
         wait();
       }
-      wait();
-      cout << "@" << sc_time_stamp() << " configs done." << endl;
-      cout << "number of obs: "<< NUMBER_OBS << endl;
-    } else {
-		  cout << "Didn't get to the target" << endl;
-	  }
+      int NUMBER_OBS = i;
+      cout << "Num obs: " << NUMBER_OBS << endl;
+      // int num_iter = 0;
+      int max_iter = MAX_NUMBER_NODES;
+      InputType max_step = 0.35; // everything will be in radians!
+      // InputType L1 = 1;
+      // InputType L2 = 1;
+
+      InputType q1_max = PI;
+      InputType q1_min = -PI;
+
+      InputType q2_max = PI;
+      InputType q2_min = 0;
+
+      InputType q_rand[2];
+      // InputType p_rand[2];
+      // InputType pf[2];
+      // InputType s1,s2,c1,c2;
+      // ac_math::ac_sin_cordic(qf[0], s1);
+      // ac_math::ac_cos_cordic(qf[0], c1);
+      // ac_math::ac_sin_cordic(qf[0]+qf[1], s2);
+      // ac_math::ac_cos_cordic(qf[0]+qf[1], c2);
+      // pf[0] = L1*c1 + L2*c2;
+      // pf[1] = L1*s1 + L2*s2;
+
+
+      InputType route[MAX_NUMBER_NODES][2];
+      route[0][0] = qs[0];
+      route[0][1] = qs[1];
+      //int route_size = 1;
+      int num_iter = 1;
+      int edges[MAX_NUMBER_NODES];
+      edges[0] = 1;
+
+      while (num_iter <= max_iter) {
+  	    //printf("Got into main loop");
+        rnd_seed = rand_inp(rnd_seed);
+        q_rand[0] = (q1_max - q1_min)*(((unsigned) rnd_seed) % 100)/100 + q1_min;
+        rnd_seed = rand_inp(rnd_seed);
+        q_rand[1] = (q2_max - q2_min)*(((unsigned) rnd_seed) % 100)/100 + q2_min;
+
+        // InputType s1,s2,c1,c2;
+        // ac_math::ac_sin_cordic(q_rand[0], s1);
+        // ac_math::ac_cos_cordic(q_rand[0], c1);
+        // ac_math::ac_sin_cordic(q_rand[0]+q_rand[1], s2);
+        // ac_math::ac_cos_cordic(q_rand[0]+q_rand[1], c2);
+        // p_rand[0] = L1*c1 + L2*c2;
+        // p_rand[1] = L1*s1 + L2*s2;
+
+        // InputType q_test[2];
+        // q_test[0] = 0;
+        // q_test[1] = 0;
+        // InputType p_test[2];
+        // p_test[0] = 2;
+        // p_test[1] = 0;
+        // cout << q_test[0] << ", " << q_test[1] << endl;
+        // inverseKin(p_test, q_test);
+        // cout << q_test[0] << ", " << q_test[1] << endl;
+
+        // cout << q_rand[0] << ", " << q_rand[1] << endl;
+        // inverseKin(p_rand, q_rand);
+        // cout << q_rand[0] << ", " << q_rand[1] << endl;
+
+        if (!inObs(q_rand, obs, NUMBER_OBS)) { // pass q_rand
+          InputType nearVertAndInd[2];
+          int near_ind;
+          findNearestVert(q_rand, route, nearVertAndInd, &near_ind, num_iter);
+          InputType q_near[2];
+          // InputType p_near[2];
+          q_near[0] = nearVertAndInd[0];
+          q_near[1] = nearVertAndInd[1];
+
+          // InputType s1,s2,c1,c2;
+          // ac_math::ac_sin_cordic(q_near[0], s1);
+          // ac_math::ac_cos_cordic(q_near[0], c1);
+          // ac_math::ac_sin_cordic(q_near[0]+q_near[1], s2);
+          // ac_math::ac_cos_cordic(q_near[0]+q_near[1], c2);
+          // p_near[0] = L1*c1 + L2*c2;
+          // p_near[1] = L1*s1 + L2*s2;
+
+          // if close enough, then we're done! :)
+          if (findNorm(q_near, qf) < max_step) {
+            if (hasEdgeCollision(q_near, qf, obs, NUMBER_OBS)) {
+              continue;
+            }
+            route[num_iter][0] = qf[0];
+            route[num_iter][1] = qf[1];
+            edges[num_iter] = near_ind;
+            //route_size++;
+            num_iter++;
+            break;
+          }
+          // compute this from q_near, q_rand, and max_step
+          InputType q_new[2];
+          // InputType p_new[2];
+          InputType magnitude = findNorm(q_rand, q_near);
+          if (magnitude > 0.0001) {
+            if (magnitude > max_step) {
+              q_new[0] = ((q_rand[0] - q_near[0])/magnitude)*max_step + q_near[0];
+              q_new[1] = ((q_rand[1] - q_near[1])/magnitude)*max_step + q_near[1];
+            } else {
+              q_new[0] = q_rand[0];
+              q_new[1] = q_rand[1];
+            }
+
+  		      // ac_math::ac_sin_cordic(q_new[0], s1);
+  		      // ac_math::ac_cos_cordic(q_new[0], c1);
+  		      // ac_math::ac_sin_cordic(q_new[0]+q_new[1], s2);
+  		      // ac_math::ac_cos_cordic(q_new[0]+q_new[1], c2);
+            //
+  		      // p_new[0] = L1*c1 + L2*c2;
+  		      // p_new[1] = L1*s1 + L2*s2;
+            // Don't push_back if we hit in process
+            if (hasEdgeCollision(q_new, q_near, obs, NUMBER_OBS)) {
+              continue;
+            }
+            // inverseKin(p_new, q_new);
+            route[num_iter][0] = q_new[0];
+            route[num_iter][1] = q_new[1];
+            edges[num_iter] = near_ind;
+            //route_size++;
+            num_iter++;
+          }
+        }
+        wait();
+      }
+
+      // Now that we've got the total graph, pick out a trajectory
+      // num_iter total number of nodes
+      if (num_iter <= max_iter) {
+  	  // printf("Making traj \n");
+        InputType trajectory;
+        trajectory = route[num_iter-1][0];
+        configurations[0].Push(trajectory);
+        trajectory = route[num_iter-1][1];
+        configurations[1].Push(trajectory);
+
+        int next_ind = edges[num_iter-1];
+        InputType q_curr[2];
+        q_curr[0] = route[num_iter-1][0];
+        q_curr[1] = route[num_iter-1][1];
+
+        int i = 1;
+        while (q_curr[0] != qs[0] || q_curr[1] != qs[1] ) {
+          //pass out trajectories
+  	    	// printf("Found the beginning \n");
+          trajectory = route[next_ind][0];
+          configurations[0].Push(trajectory);
+          trajectory = route[next_ind][1];
+          configurations[1].Push(trajectory);
+          q_curr[0] = route[next_ind][0];
+          q_curr[1] = route[next_ind][1];
+          next_ind = edges[next_ind];
+          i++;
+          wait();
+        }
+        wait();
+        //cout << "@" << sc_time_stamp() << " configs done." << endl;
+        //cout << "number of obs: "<< NUMBER_OBS << endl;
+      } //else {
+  		  //cout << "Didn't get to the target" << endl;
+  	  //}
+    }
   }
   //finding nearest node
   void findNearestVert(InputType q_curr[2], InputType route[MAX_NUMBER_NODES][2], InputType node[3], int* near_ind, int route_size) {
@@ -303,25 +314,19 @@ SC_MODULE(RRT)
 
   //https://www.christianpinder.com/articles/pseudo-random-number-generation/
   //random num generator
-  // static int rnd_seed;
-  //
-  // void set_rnd_seed (int new_seed)
-  // {
-  //   rnd_seed = new_seed;
-  // }
-  //
-  // InputType rand_int (void)
-  // {
-  //   InputType k1;
-  //   InputType ix = rnd_seed;
-  //
-  //   k1 = ix / 127773;
-  //   ix = 16807 * (ix - k1 * 127773) - k1 * 2836;
-  //   if (ix < 0)
-  //       ix += 2147483647;
-  //   rnd_seed = ix;
-  //   return rnd_seed;
-  // }
+
+  RandType rand_inp(RandType rnd_seed)
+  {
+    RandType k1;
+    RandType ix = rnd_seed;
+
+    k1 = ix / 127773;
+    ix = 16807 * (ix - k1 * 127773) - k1 * 2836;
+    if (ix < 0)
+        ix += 2147483647;
+    rnd_seed = ix;
+    return rnd_seed;
+  }
   //norm calculation
   InputType findNorm(InputType q1[2], InputType q2[2]) {
     InputType ret;
@@ -366,43 +371,43 @@ SC_MODULE(RRT)
   }
 
   //inverse kinematics function
-  void inverseKin(InputType ee_pos[2], InputType q[2]) {
-    InputType L1 = 1;
-    InputType L2 = 1;
-    InputType px = ee_pos[0];
-    InputType py = ee_pos[1];
-    InputType exp_px, exp_py, exp_L1, exp_L2, exp_c2, s2;
-    exp_px = px*px;
-    exp_py = py*py;
-    exp_L1 = L1*L1;
-    exp_L2 = L2*L2;
-    InputType c2 = (exp_px + exp_py - exp_L1 - exp_L2) / (2*L1*L2);
-
-    exp_c2 = c2*c2;
-    InputType square =  (1-exp_c2);
-    ComplexType inp (square, 0);
-    // cout << inp.r() << endl;
-    ComplexType outp;
-    ac_math::ac_sqrt_pwl(inp, outp);
-    s2 = outp.r();
-
-    // UnsignedType arg1, arg2;
-    // arg1 = (UnsignedType) square;
-    // ac_math::ac_sqrt_pwl(arg1, arg2);
-    // s2 = (InputType) arg2;
-
-    InputType pyx, cs1, cs2;
-    ac_math::ac_atan2_cordic(s2, c2, cs2);
-    q[1] = cs2;
-    // InputType cos2, sin2;
-    // ac_math::ac_sin_cordic(q[1], sin2);
-    // ac_math::ac_cos_cordic(q[1], cos2);
-
-    ac_math::ac_atan2_cordic(py, px, pyx);
-    ac_math::ac_atan2_cordic(L2*s2, L1 + L2*c2, cs1);
-    q[0] = pyx - cs1; //plus or minus
-    // check joint limits?
-  }
+  // void inverseKin(InputType ee_pos[2], InputType q[2]) {
+  //   InputType L1 = 1;
+  //   InputType L2 = 1;
+  //   InputType px = ee_pos[0];
+  //   InputType py = ee_pos[1];
+  //   InputType exp_px, exp_py, exp_L1, exp_L2, exp_c2, s2;
+  //   exp_px = px*px;
+  //   exp_py = py*py;
+  //   exp_L1 = L1*L1;
+  //   exp_L2 = L2*L2;
+  //   InputType c2 = (exp_px + exp_py - exp_L1 - exp_L2) / (2*L1*L2);
+  //
+  //   exp_c2 = c2*c2;
+  //   InputType square =  (1-exp_c2);
+  //   ComplexType inp (square, 0);
+  //   // cout << inp.r() << endl;
+  //   ComplexType outp;
+  //   ac_math::ac_sqrt_pwl(inp, outp);
+  //   s2 = outp.r();
+  //
+  //   // UnsignedType arg1, arg2;
+  //   // arg1 = (UnsignedType) square;
+  //   // ac_math::ac_sqrt_pwl(arg1, arg2);
+  //   // s2 = (InputType) arg2;
+  //
+  //   InputType pyx, cs1, cs2;
+  //   ac_math::ac_atan2_cordic(s2, c2, cs2);
+  //   q[1] = cs2;
+  //   // InputType cos2, sin2;
+  //   // ac_math::ac_sin_cordic(q[1], sin2);
+  //   // ac_math::ac_cos_cordic(q[1], cos2);
+  //
+  //   ac_math::ac_atan2_cordic(py, px, pyx);
+  //   ac_math::ac_atan2_cordic(L2*s2, L1 + L2*c2, cs1);
+  //   q[0] = pyx - cs1; //plus or minus
+  //   // check joint limits?
+  // }
 
   //obstacle checking function
   bool inObs(InputType q_curr[2], InputType obstacles[MAX_NUMBER_OBS][3], int NumberObs) {
@@ -412,7 +417,7 @@ SC_MODULE(RRT)
     // InputType q_curr[2];
     // inverseKin(p_curr, q_curr);
 
-    InputType tolerance = 0.02; // parameter to judge how close the ee should ever come to obstacles
+    InputType tolerance = 0.025; // parameter to judge how close the ee should ever come to obstacles
     InputType s1,s2,c1,c2;
     ac_math::ac_sin_cordic(q_curr[0], s1);
     ac_math::ac_cos_cordic(q_curr[0], c1);
@@ -429,9 +434,6 @@ SC_MODULE(RRT)
 
     for (int i = 0; i < NumberObs; i++) {
       // https://math.stackexchange.com/questions/275529/check-if-line-intersects-with-circles-perimeter
-      if (obstacles[i][2] == -1) {
-        return false;
-      }
       rx = obstacles[i][0];
       ry = obstacles[i][1];
       r  = obstacles[i][2] + tolerance;

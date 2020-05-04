@@ -23,8 +23,8 @@ using namespace::std;
 
 #ifndef CONSTANTS
 #define CONSTANTS
-#define MAX_NUMBER_OBS 20
-#define MAX_NUMBER_NODES 15000
+#define MAX_NUMBER_OBS 10
+#define MAX_NUMBER_NODES 7500
 #define PI 3.1415926535
 #endif
 
@@ -32,13 +32,22 @@ SC_MODULE (Source) {
   // I/O
   // typedef ac_fixed<30, 15, false, AC_RND, AC_SAT> InputType;
   // typedef ac_fixed<30, 15, false, AC_RND, AC_SAT> OutputType;
-  Connections::Out<RRT::InputType>   start_position[2];
-  Connections::Out<RRT::InputType>   end_position[2];
-  Connections::Out<RRT::InputType>   obstacles[3]; // need to read in obs 1 at a time
+  Connections::Out<RRT::InputType>  start_position[2];
+  Connections::Out<RRT::InputType>  end_position[2];
+  Connections::Out<RRT::InputType>  obstacles[3]; // need to read in obs 1 at a time
+  Connections::Out<RRT::RandType>   rand_seed;
   Connections::In<RRT::OutputType>  configurations[2]; // need to read out configs 1 at a time
 
   sc_in <bool> clk;
   sc_in <bool> rst;
+
+  int N = 1; // N == number of obstacles
+  RRT::InputType start_position_list[2] {0,0};
+  // start_position_list[0] = 0;
+  // start_position_list[1] = 0;
+  RRT::InputType end_position_list[2] {PI/2, 0};
+  // end_position_list[0] = PI/2;
+  // end_position_list[1] = 0;
 
   SC_CTOR(Source) {
     SC_THREAD(start);
@@ -50,6 +59,7 @@ SC_MODULE (Source) {
   }
 
   void start() {
+    // Wait for initial reset
     for (int i=0; i < 2; i++) {
       start_position[i].Reset();
       end_position[i].Reset();
@@ -57,134 +67,135 @@ SC_MODULE (Source) {
     for (int i=0; i < 3; i++) {
       obstacles[i].Reset();
     }
-    //cout << "start loop\n";
-    RRT::InputType start_position_list[2];
-    start_position_list[0] = 0;
-    start_position_list[1] = 0;
-    RRT::InputType end_position_list[2];
-    end_position_list[0] = PI/2;
-    end_position_list[1] = 0;
-    int N = 20; // N == number of obstacles
+    rand_seed.Reset();
+    //cout << "start loop\n"
+
     RRT::InputType obs_list[N][3];
     obs_list[0][0] = 1.5;
     obs_list[0][1] = 1.5;
     obs_list[0][2] = 0.25;
 
-    obs_list[1][0] = -1.5;
-    obs_list[1][1] = 1.5;
-    obs_list[1][2] = 0.25;
-
-    obs_list[2][0] = -1.5;
-    obs_list[2][1] = -1.5;
-    obs_list[2][2] = 0.25;
+    // obs_list[1][0] = -1.5;
+    // obs_list[1][1] = 1.5;
+    // obs_list[1][2] = 0.25;
     //
-    obs_list[3][0] = -1.5;
-    obs_list[3][1] = -1.5;
-    obs_list[3][2] = 0.25;
+    // obs_list[2][0] = -1.5;
+    // obs_list[2][1] = -1.5;
+    // obs_list[2][2] = 0.25;
+    // //
+    // obs_list[3][0] = -1.5;
+    // obs_list[3][1] = -1.5;
+    // obs_list[3][2] = 0.25;
+    // //
+    // obs_list[4][0] = -2;
+    // obs_list[4][1] = 0;
+    // obs_list[4][2] = 0.25;
     //
-    obs_list[4][0] = -2;
-    obs_list[4][1] = 0;
-    obs_list[4][2] = 0.25;
+    // for (int i = 5; i < N; i++) {
+    //   obs_list[i][0] = -2;
+    //   obs_list[i][1] = 0;
+    //   obs_list[i][2] = 0.25;
+    // }
     ///////////////////////////////////////
-    obs_list[5][0] = 1.5;
-    obs_list[5][1] = 1.5;
-    obs_list[5][2] = 0.25;
-
-    obs_list[6][0] = -1.5;
-    obs_list[6][1] = 1.5;
-    obs_list[6][2] = 0.25;
-
-    obs_list[7][0] = -1.5;
-    obs_list[7][1] = -1.5;
-    obs_list[7][2] = 0.25;
-    //
-    obs_list[8][0] = -1.5;
-    obs_list[8][1] = -1.5;
-    obs_list[8][2] = 0.25;
-    //
-    obs_list[9][0] = -2;
-    obs_list[9][1] = 0;
-    obs_list[9][2] = 0.25;
-
-    // obs_list[5][0] = 0;
-    // obs_list[5][1] = -2;
+    // obs_list[5][0] = 1.5;
+    // obs_list[5][1] = 1.5;
     // obs_list[5][2] = 0.25;
     //
-    // obs_list[6][0] = -1;
-    // obs_list[6][1] = 1;
+    // obs_list[6][0] = -1.5;
+    // obs_list[6][1] = 1.5;
     // obs_list[6][2] = 0.25;
     //
-    // obs_list[7][0] = -1;
-    // obs_list[7][1] = -1;
+    // obs_list[7][0] = -1.5;
+    // obs_list[7][1] = -1.5;
     // obs_list[7][2] = 0.25;
     // //
-    // obs_list[8][0] = 1;
-    // obs_list[8][1] = -1;
+    // obs_list[8][0] = -1.5;
+    // obs_list[8][1] = -1.5;
     // obs_list[8][2] = 0.25;
     // //
-    // obs_list[9][0] = -0.5;
-    // obs_list[9][1] = -0.5;
+    // obs_list[9][0] = -2;
+    // obs_list[9][1] = 0;
     // obs_list[9][2] = 0.25;
-    // ///////////////////////////////////////
-    obs_list[10][0] = 1.5;
-    obs_list[10][1] = 1.5;
-    obs_list[10][2] = 0.25;
-
-    obs_list[11][0] = -1.5;
-    obs_list[11][1] = 1.5;
-    obs_list[11][2] = 0.25;
-
-    obs_list[12][0] = -1.5;
-    obs_list[12][1] = -1.5;
-    obs_list[12][2] = 0.25;
     //
-    obs_list[13][0] = -1.5;
-    obs_list[13][1] = -1.5;
-    obs_list[13][2] = 0.25;
-    //
-    obs_list[14][0] = -2;
-    obs_list[14][1] = 0;
-    obs_list[14][2] = 0.25;
-
-    // obs_list[10][0] = -0.5;
-    // obs_list[10][1] = 0.5;
+    // // obs_list[5][0] = 0;
+    // // obs_list[5][1] = -2;
+    // // obs_list[5][2] = 0.25;
+    // //
+    // // obs_list[6][0] = -1;
+    // // obs_list[6][1] = 1;
+    // // obs_list[6][2] = 0.25;
+    // //
+    // // obs_list[7][0] = -1;
+    // // obs_list[7][1] = -1;
+    // // obs_list[7][2] = 0.25;
+    // // //
+    // // obs_list[8][0] = 1;
+    // // obs_list[8][1] = -1;
+    // // obs_list[8][2] = 0.25;
+    // // //
+    // // obs_list[9][0] = -0.5;
+    // // obs_list[9][1] = -0.5;
+    // // obs_list[9][2] = 0.25;
+    // // ///////////////////////////////////////
+    // obs_list[10][0] = 1.5;
+    // obs_list[10][1] = 1.5;
     // obs_list[10][2] = 0.25;
     //
-    // obs_list[11][0] = 0.5;
-    // obs_list[11][1] = -0.5;
+    // obs_list[11][0] = -1.5;
+    // obs_list[11][1] = 1.5;
     // obs_list[11][2] = 0.25;
     //
-    // obs_list[12][0] = 1.75;
-    // obs_list[12][1] = 1.75;
+    // obs_list[12][0] = -1.5;
+    // obs_list[12][1] = -1.5;
     // obs_list[12][2] = 0.25;
     // //
-    // obs_list[13][0] = 1.75;
-    // obs_list[13][1] = 1.5;
+    // obs_list[13][0] = -1.5;
+    // obs_list[13][1] = -1.5;
     // obs_list[13][2] = 0.25;
     // //
-    // obs_list[14][0] = 1.5;
-    // obs_list[14][1] = 1.75;
+    // obs_list[14][0] = -2;
+    // obs_list[14][1] = 0;
     // obs_list[14][2] = 0.25;
-    // ///////////////////////////////////////
-    obs_list[15][0] = 1.5;
-    obs_list[15][1] = 1.5;
-    obs_list[15][2] = 0.25;
-
-    obs_list[16][0] = -1.5;
-    obs_list[16][1] = 1.5;
-    obs_list[16][2] = 0.25;
-
-    obs_list[17][0] = -1.5;
-    obs_list[17][1] = -1.5;
-    obs_list[17][2] = 0.25;
     //
-    obs_list[18][0] = -1.5;
-    obs_list[18][1] = -1.5;
-    obs_list[18][2] = 0.25;
+    // // obs_list[10][0] = -0.5;
+    // // obs_list[10][1] = 0.5;
+    // // obs_list[10][2] = 0.25;
+    // //
+    // // obs_list[11][0] = 0.5;
+    // // obs_list[11][1] = -0.5;
+    // // obs_list[11][2] = 0.25;
+    // //
+    // // obs_list[12][0] = 1.75;
+    // // obs_list[12][1] = 1.75;
+    // // obs_list[12][2] = 0.25;
+    // // //
+    // // obs_list[13][0] = 1.75;
+    // // obs_list[13][1] = 1.5;
+    // // obs_list[13][2] = 0.25;
+    // // //
+    // // obs_list[14][0] = 1.5;
+    // // obs_list[14][1] = 1.75;
+    // // obs_list[14][2] = 0.25;
+    // // ///////////////////////////////////////
+    // obs_list[15][0] = 1.5;
+    // obs_list[15][1] = 1.5;
+    // obs_list[15][2] = 0.25;
     //
-    obs_list[19][0] = -2;
-    obs_list[19][1] = 0;
-    obs_list[19][2] = 0.25;
+    // obs_list[16][0] = -1.5;
+    // obs_list[16][1] = 1.5;
+    // obs_list[16][2] = 0.25;
+    //
+    // obs_list[17][0] = -1.5;
+    // obs_list[17][1] = -1.5;
+    // obs_list[17][2] = 0.25;
+    // //
+    // obs_list[18][0] = -1.5;
+    // obs_list[18][1] = -1.5;
+    // obs_list[18][2] = 0.25;
+    // //
+    // obs_list[19][0] = -2;
+    // obs_list[19][1] = 0;
+    // obs_list[19][2] = 0.25;
 
     // obs_list[15][0] = 0.5;
     // obs_list[15][1] = 1.8;
@@ -205,10 +216,9 @@ SC_MODULE (Source) {
     // obs_list[19][0] = -0.5;
     // obs_list[19][1] = -0.5;
     // obs_list[19][2] = 0.25;
-
-    // Wait for initial reset
-    wait(20.0, SC_NS);
+    wait(200.0, SC_NS);
     wait();
+
     // Write wait to PE
     RRT::InputType tmp;
     tmp = start_position_list[0];
@@ -219,6 +229,9 @@ SC_MODULE (Source) {
     end_position[0].Push(tmp);
     tmp = end_position_list[1];
     end_position[1].Push(tmp);
+
+    RRT::RandType temp = rand(); // more robust way?
+    rand_seed.Push(temp);
 
     for (int i=0; i< N; i++) {
         tmp = obs_list[i][0];
@@ -243,12 +256,15 @@ SC_MODULE (Source) {
     wait();
     //cout << "start configs\n";
     while (1) {
-      RRT::OutputType tmp;
-      tmp = configurations[0].Pop();
-      cout << tmp << ", " ;
-      tmp = configurations[1].Pop();
-      cout << tmp << endl;
+      RRT::OutputType tmp1, tmp2;
+      tmp1 = configurations[0].Pop();
+      cout << tmp1 << ", " ;
+      tmp2 = configurations[1].Pop();
+      cout << tmp2 << endl;
       //should write to a file here
+      if(tmp1 == start_position_list[0] && tmp2 == start_position_list[1]) {
+        cout << "@" << sc_time_stamp() << " Solution Reached" << endl ;
+      }
       wait();
     }
   }// void pop_result()
@@ -261,6 +277,7 @@ SC_MODULE (testbench) {
   Connections::Combinational<RRT::InputType> start_position[2];
   Connections::Combinational<RRT::InputType> end_position[2];
   Connections::Combinational<RRT::InputType> obstacles[3];
+  Connections::Combinational<RRT::RandType> rand_seed;
   Connections::Combinational<RRT::OutputType> configurations[2];
 
   NVHLS_DESIGN(RRT) RRT_MOD;
@@ -276,19 +293,25 @@ SC_MODULE (testbench) {
   {
     RRT_MOD.clk(clk);
     RRT_MOD.rst(rst);
-    src.clk(clk);
-    src.rst(rst);
-
+    RRT_MOD.rand_seed(rand_seed);
     for (int i=0; i < 2; i++) {
       RRT_MOD.start_position[i](start_position[i]);
       RRT_MOD.end_position[i](end_position[i]);
       RRT_MOD.configurations[i](configurations[i]);
+    }
+    for (int i=0; i < 3; i++) {
+      RRT_MOD.obstacles[i](obstacles[i]);
+    }
+
+    src.clk(clk);
+    src.rst(rst);
+    src.rand_seed(rand_seed);
+    for (int i=0; i < 2; i++) {
       src.start_position[i](start_position[i]);
       src.end_position[i](end_position[i]);
       src.configurations[i](configurations[i]);
     }
     for (int i=0; i < 3; i++) {
-      RRT_MOD.obstacles[i](obstacles[i]);
       src.obstacles[i](obstacles[i]);
     }
 
@@ -303,7 +326,8 @@ SC_MODULE (testbench) {
     wait(1, SC_NS);
     cout << "@" << sc_time_stamp() << " Deasserting Reset " << endl ;
     rst = 1;
-    wait(20000000,SC_NS);
+
+    wait(2000000,SC_NS);
     cout << "@" << sc_time_stamp() << " Stop " << endl ;
     sc_stop();
   }
