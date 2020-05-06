@@ -8,6 +8,8 @@
 #include <time.h>
 #include <atomic>
 #include <thread>
+#include <chrono> 
+#include <mutex>
 
 using namespace std;
 
@@ -16,11 +18,15 @@ using namespace std;
 
 // fill this in later!
 
-#define Q1RANGE 360
-#define Q2RANGE 180
-#define Q1MIN -180
+#define Q1RANGE 90
+#define Q2RANGE 90
+#define Q1MIN 0
 #define Q2MIN 0 
 #define PI 3.14159
+
+// Running many more threads than cores degrades performance
+
+#define NUMCORES 4
 
 float L1 = 1;
 float L2 = 1;
@@ -31,8 +37,13 @@ bool colValid[Q1RANGE + 1][Q2RANGE + 1];
 int numColsComp; 
 int numColsCall; 
 
+int num_obs_calc; 
+
 atomic_int numThreadComp; 
+atomic_int numThreadsRunning; 
 atomic_bool hasHit; 
+
+mutex g_display_mutex;
 
 vector<float> inverseKin(vector<float> ee_pos) {
 	float px = ee_pos[0];
@@ -49,6 +60,12 @@ vector<float> inverseKin(vector<float> ee_pos) {
 // If there is a hit, toggle the atomic boolean. 
 void obsChecker(vector<float> base_pos, vector<float> joint_pos, vector<float> ee_pos, vector<float> currObs) {
 	// https://math.stackexchange.com/questions/275529/check-if-line-intersects-with-circles-perimeter
+    // thread::id this_id = this_thread::get_id();
+ 
+    // g_display_mutex.lock();
+    // cout << "thread: " << this_id << endl;
+    // g_display_mutex.unlock();
+
 	float ax = ee_pos[0];
 	float ay = ee_pos[1];
 	float bx = joint_pos[0];
@@ -73,12 +90,14 @@ void obsChecker(vector<float> base_pos, vector<float> joint_pos, vector<float> e
 					if (0 < ax && 0 > bx) {
 							hasHit = true; 
 							numThreadComp++; 
+							numThreadsRunning--; 
 							return;
 					}
 			} else {
 					if (0 < bx && 0 > ax) {
 							hasHit = true; 
 							numThreadComp++; 
+							numThreadsRunning--; 
 							return;
 				  }
 			}
@@ -106,31 +125,27 @@ void obsChecker(vector<float> base_pos, vector<float> joint_pos, vector<float> e
 					if (0 < ax && 0 > bx) {
 							hasHit = true; 
 							numThreadComp++; 
+							numThreadsRunning--; 
 							return;
 					}
 			} else {
 					if (0 < bx && 0 > ax) {
 							hasHit = true; 
 							numThreadComp++; 
+							numThreadsRunning--; 
 							return;
 				  }
 			}
 	}
+	numThreadsRunning--; 
 	numThreadComp++; 
 	return; 
 }
 
 bool inObs(vector<float> p_curr, vector<float> q_curr, vector<vector<float> > obstacles) {
 	// Make sure that ee and joint don't hit!
-
-	// Passing the joint vector, don't need to call this!
-	// vector<float> q_curr(2);
-	// vector<float> temp(2);
-	// temp = inverseKin(p_curr);
-	// copy(temp.begin(), temp.begin() + 2, q_curr.begin());
-	// int q1_ind = round(q_curr[0]*180/PI) - Q1MIN;
-	// int q2_ind = round(q_curr[1]*180/PI) - Q2MIN; 
-
+	
+	
 	vector<float> ee_pos(2);
 	ee_pos[0] = L1*cos(q_curr[0]) + L2*cos(q_curr[0] + q_curr[1]);
 	ee_pos[1] = L1*sin(q_curr[0]) + L2*sin(q_curr[0] + q_curr[1]);
@@ -146,12 +161,23 @@ bool inObs(vector<float> p_curr, vector<float> q_curr, vector<vector<float> > ob
 	hasHit = false; 
 	numThreadComp = 0; 
 
-	for (int i = 0; i < obstacles.size(); i++) {
-		// spawn threads here!
-		vector<float> currObs = obstacles[i];
-		thread currThread(obsChecker, base_pos, joint_pos, ee_pos, currObs); 
+	int numThreadsSpawned = 0; 
+	numThreadsRunning = 0; 
+
+	while (numThreadsRunning < NUMCORES + 1 && numThreadsSpawned < obstacles.size() && !hasHit) {
+		vector<float> currObs = obstacles[numThreadsSpawned];
+		numThreadsSpawned++; 
+		thread currThread(obsChecker, base_pos, joint_pos, ee_pos, currObs);
+		numThreadsRunning++; 
 		currThread.detach(); 
 	}
+
+	// for (int i = 0; i < obstacles.size(); i++) {
+	// 	// spawn threads here!
+	// 	vector<float> currObs = obstacles[i];
+	// 	thread currThread(obsChecker, base_pos, joint_pos, ee_pos, currObs); 
+	// 	currThread.detach(); 
+	// }
 
 	while (!hasHit && numThreadComp < obstacles.size()) {
 		// poll here!
@@ -162,32 +188,6 @@ bool inObs(vector<float> p_curr, vector<float> q_curr, vector<vector<float> > ob
 
 // fill this in later also!
 bool hasEdgeCollision(vector<float> p1, vector<float> p2, vector<float> q_curr, vector<vector<float> > obstacles) {
-
-	// convert to degrees
-	// vector<float> q_deg(2);
-	// q_deg[0] = q_curr[0]*(180/PI);
-	// q_deg[1] = q_curr[1]*(180/PI);
-
-	// // look in the memo
-	// int q1_ind = round(q_deg[0]) - Q1MIN; 
-	// int q2_ind = round(q_deg[1]) - Q2MIN; 
-
-	// // This is really not fun
-	// if (isnan(q_deg[0]) || isnan(q_deg[1])) 
-	// 	return true; 
-
-	// cout << "q1 in degrees: " << round(q_deg[0]) << endl; 
-	// cout << "q2 in degrees: " << round(q_deg[1]) << endl; 
-
-	// cout << "q1_ind: " << q1_ind << endl; 
-	// cout << "q2_ind: " << q2_ind << endl; 
-	// numColsCall++; 
-
-	// if (colValid[q1_ind][q2_ind]) {
-	// 	return colMemo[q1_ind][q2_ind];
-	// }
-
-	// numColsComp++; 
 
 	int resolution = 25;
 
@@ -211,7 +211,7 @@ bool hasEdgeCollision(vector<float> p1, vector<float> p2, vector<float> q_curr, 
 
 
 float findNorm(vector<float> q1, vector<float> q2) {
-	float dist = sqrt((q1[0]-q2[0])*(q1[0]-q2[0]) + (q1[1]-q2[1])*(q1[1]-q2[1]));
+	float dist = sqrt(pow(q1[0]-q2[0], 2) + pow(q1[1]-q2[1], 2));
 	return dist;
 }
 
@@ -249,18 +249,21 @@ vector<float> findNearestVert(vector<float> p_curr, vector<vector<float> > route
 
 void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	int num_iter = 0;
-	int max_iter = 7500;
-	float max_step = 0.05; // everything will be in radians!
+	int max_iter = 5000;
+	float max_step = 0.1;
 
-	float q1_max = (Q1RANGE + Q1MIN)*(PI/180);
-	float q1_min = Q1MIN*(PI/180);
+	num_obs_calc = 0; 
 
-	float q2_max = (Q2RANGE + Q2MIN)*(PI/180);
-	float q2_min = Q2MIN*(PI/180);
+	float q1_max = PI/2;
+	float q1_min = 0;
+
+	float q2_max = PI/2;
+	float q2_min = 0;
 
 	vector<float> q_rand(2);
 	vector<float> p_rand(2);
   	vector<float> pf(2);
+
 	pf[0] = L1*cos(qf[0]) + L2*cos(qf[0] + qf[1]);
 	pf[1] = L1*sin(qf[0]) + L2*sin(qf[0] + qf[1]);
 
@@ -270,14 +273,17 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	vector<int> edges;
 	edges.push_back(1);
 
+	int num_loops = 0; 
+
 	while (num_iter <= max_iter) {
+		// cout << "num_loops: " << num_loops << endl; 
+		// cout << "num_iter: " << num_iter << endl; 
+		num_loops++; 
 		q_rand[0] = (q1_max - q1_min)*(rand() % 100)/100 + q1_min;
 		q_rand[1] = (q2_max - q2_min)*(rand() % 100)/100 + q2_min;
+
 		p_rand[0] = L1*cos(q_rand[0]) + L2*cos(q_rand[0] + q_rand[1]);
 		p_rand[1] = L1*sin(q_rand[0]) + L2*sin(q_rand[0] + q_rand[1]);
-
-		// cout << p_rand[0] << "\n";
-		// cout << p_rand[1] << "\n";
 
 		if (!inObs(p_rand, q_rand, obs)) {
 			num_iter++;
@@ -292,10 +298,12 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 			p_near[0] = L1*cos(q_near[0]) + L2*cos(q_near[0] + q_near[1]);
 			p_near[1] = L1*sin(q_near[0]) + L2*sin(q_near[0] + q_near[1]);
 			// if close enough, then we're done! :)
-			if (findNorm(p_near, pf) < max_step) {
-				if (hasEdgeCollision(p_near, pf, qf, obs)) {
-					num_iter--;
-					continue;
+
+			if (findNorm(q_near, qf) < max_step) {
+
+				if (hasEdgeCollision(p_near, pf, q_near, obs)) {
+					num_iter--; 
+					continue; 
 				}
 				route.push_back(qf);
 				edges.push_back(near_ind);
@@ -306,19 +314,39 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 			vector<float> q_new(2);
 			vector<float> temp(2);
 			vector<float> p_new(2);
-			float magnitude = findNorm(p_rand, p_near);
-			if(magnitude > 0.001) {
-				p_new[0] = ((p_rand[0] - p_near[0])/magnitude)*max_step + p_near[0];
-				p_new[1] = ((p_rand[1] - p_near[1])/magnitude)*max_step + p_near[1];
+			float magnitude = findNorm(q_rand, q_near);
 
-				temp = inverseKin(p_new);
-				copy(temp.begin(), temp.begin() + 2, q_new.begin());
-				//cout << p_new[0] << "," << p_new[1];
-				//cout << q_new[0] << "," << q_new[1];
+			if(magnitude > 0.001) {
+				q_new[0] = ((q_rand[0] - q_near[0])/magnitude)*max_step + q_near[0];
+				q_new[1] = ((q_rand[1] - q_near[1])/magnitude)*max_step + q_near[1];
+
+				p_new[0] = L1*cos(q_new[0]) + L2*cos(q_new[0] + q_new[1]);
+				p_new[1] = L1*sin(q_new[0]) + L2*sin(q_new[0] + q_new[1]); 
+
 				// Don't push_back if we hit in process
+				if (q_new[0] > q1_max || q_new[0] < q1_min) {
+					// cout << "q1 oobs rrt" << endl;
+					num_iter--; 
+					continue; 
+				}
+
+				if (q_new[1] > q2_max || q_new[1] < q2_min) {
+					// cout << "q2 oobs rrt" << endl; 
+					num_iter--; 
+					continue; 
+				}
+
+				if (isnan(q_new[0]) || isnan(q_new[1])) {
+					num_iter--; 
+					continue; 
+				}
+
+				int q1_ind = (int) roundf(q_new[0]*(PI/180)) - Q1MIN; 
+				int q2_ind = (int) roundf(q_new[1]*(PI/180)) - Q2MIN; 
+
 				if (hasEdgeCollision(p_new, p_near, q_new, obs)) {
-					num_iter--;
-					continue;
+					num_iter--; 
+					continue; 
 				}
 				route.push_back(q_new);
 				edges.push_back(near_ind);
@@ -348,7 +376,6 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 
 		ofstream trajfile;
 		trajfile.open("traj_log.csv");
-		//trajfile.open("traj_log_no_obs.csv");
 		// x, y in a row. Lines denote separate points.
 
 		int traj_len = trajectory.size();
@@ -358,15 +385,17 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 
 		ofstream trajfile2;
 		trajfile2.open("workspace_traj_log.csv");
-		//trajfile2.open("workspace_traj_log_no_obs.csv");
 		// x, y in a row. Lines denote separate points.
-	  float ee_pos_0;
+	  	float ee_pos_0;
 		float ee_pos_1;
 		for (int j = traj_len-1; j > -1; j--) {
 			ee_pos_0 = L1*cos(trajectory[j][0]) + L2*cos(trajectory[j][0] + trajectory[j][1]);
 			ee_pos_1 = L1*sin(trajectory[j][0]) + L2*sin(trajectory[j][0] + trajectory[j][1]);
 			trajfile2 << ee_pos_0 << "," << ee_pos_1 << "\n";
 	 	}
+	 	cout << "num_obs_calc: " << num_obs_calc << endl; 
+	 	cout << "num_loops: " << num_loops << endl; 
+	 	cout << "Done" << endl; 
   } else {
 		cout << "Final position not reached.\n";
 	}
@@ -379,18 +408,18 @@ int main() {
 	qs.push_back(0);
 
 	vector<float> qf;
-	qf.push_back(1.57);
+	qf.push_back(PI/4);
 	qf.push_back(0);
 
 	vector<vector<float> > obstacles;
-	vector<float> obs1;
-	obs1.push_back(1);
-	obs1.push_back(1);
-	obs1.push_back(0.25);
-	obstacles.push_back(obs1);
+	for (int i = 0; i < 10; i++) {
+		vector<float> currObs; 
+		currObs.push_back(2); 
+		currObs.push_back(2); 
+		currObs.push_back(0.25);
+		obstacles.push_back(currObs);  
+	}
 
-	numColsCall = 0; 
-	numColsComp = 0; 
 	// Initialize all entries in the memo to be invalid
 	for (int i = 0; i < Q1RANGE + 1; i++) {
 		for (int j = 0; j < Q2RANGE + 1; j++) {
@@ -399,8 +428,12 @@ int main() {
 		}
 	}
 
+	auto start = chrono::high_resolution_clock::now(); 
 	rrt(qs, qf, obstacles);
-	cout << "numColsCall: " << numColsCall << endl; 
-	cout << "numColsComp: " << numColsComp << endl; 
+	auto stop = chrono::high_resolution_clock::now(); 
+
+	auto duration = chrono::duration_cast<chrono::microseconds>(stop - start); 
+  
+    cout << "Time taken by function: " << duration.count() << " microseconds" << endl; 
 	return 0;
 }
