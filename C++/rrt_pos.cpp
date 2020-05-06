@@ -22,6 +22,8 @@ using namespace std;
 float L1 = 1;
 float L2 = 1;
 
+int num_loop = 0; 
+
 vector<float> inverseKin(vector<float> ee_pos) {
 	float px = ee_pos[0];
   	float py = ee_pos[1];
@@ -150,7 +152,7 @@ bool hasEdgeCollision(vector<float> p1, vector<float> p2, vector<float> q_curr, 
 
 
 float findNorm(vector<float> q1, vector<float> q2) {
-	float dist = sqrt((q1[0]-q2[0])*(q1[0]-q2[0]) + (q1[1]-q2[1])*(q1[1]-q2[1]));
+	float dist = sqrt(pow(q1[0]-q2[0], 2) + pow(q1[1]-q2[1], 2));
 	return dist;
 }
 
@@ -187,6 +189,7 @@ vector<float> findNearestVert(vector<float> p_curr, vector<vector<float> > route
 }
 
 void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
+
 	int num_iter = 0;
 	int max_iter = 5000;
 	float max_step = 0.1;
@@ -202,6 +205,7 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	vector<float> q_rand(2);
 	vector<float> p_rand(2);
   	vector<float> pf(2);
+
 	pf[0] = L1*cos(qf[0]) + L2*cos(qf[0] + qf[1]);
 	pf[1] = L1*sin(qf[0]) + L2*sin(qf[0] + qf[1]);
 
@@ -212,6 +216,7 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	edges.push_back(1);
 
 	while (num_iter <= max_iter) {
+		num_loop++; 
 		q_rand[0] = (q1_max - q1_min)*(rand() % 100)/100 + q1_min;
 		q_rand[1] = (q2_max - q2_min)*(rand() % 100)/100 + q2_min;
 
@@ -234,7 +239,7 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 			p_near[0] = L1*cos(q_near[0]) + L2*cos(q_near[0] + q_near[1]);
 			p_near[1] = L1*sin(q_near[0]) + L2*sin(q_near[0] + q_near[1]);
 			// if close enough, then we're done! :)
-			if (findNorm(p_near, pf) < max_step) {
+			if (findNorm(q_near, qf) < max_step) {
 				if (hasEdgeCollision(p_near, pf, q_near, obs)) {
 					num_iter--;
 					continue;
@@ -253,8 +258,24 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 				q_new[0] = ((q_rand[0] - q_near[0])/magnitude)*max_step + q_near[0];
 				q_new[1] = ((q_rand[1] - q_near[1])/magnitude)*max_step + q_near[1];
 
-				// temp = inverseKin(p_new);
-				// copy(temp.begin(), temp.begin() + 2, q_new.begin());
+				// Don't push_back if we hit in process
+				if (q_new[0] > q1_max || q_new[0] < q1_min) {
+					// cout << "q1 oobs rrt" << endl;
+					num_iter--; 
+					continue; 
+				}
+
+				if (q_new[1] > q2_max || q_new[1] < q2_min) {
+					// cout << "q2 oobs rrt" << endl; 
+					num_iter--; 
+					continue; 
+				}
+
+				if (isnan(q_new[0]) || isnan(q_new[1])) {
+					num_iter--; 
+					continue; 
+				}
+
 
 				p_new[0] = L1*cos(q_new[0]) + L2*cos(q_new[0] + q_new[1]);
 				p_new[1] = L1*sin(q_new[0]) + L2*sin(q_new[0] + q_new[1]);
@@ -328,7 +349,7 @@ int main() {
 	qf.push_back(0);
 
 	vector<vector<float> > obstacles;
-	for (int i = 0; i < 50; i++) {
+	for (int i = 0; i < 500; i++) {
 		vector<float> currObs; 
 		currObs.push_back(2); 
 		currObs.push_back(2); 
@@ -342,6 +363,7 @@ int main() {
 
 	auto stop = chrono::high_resolution_clock::now(); 
 	auto duration = chrono::duration_cast<chrono::microseconds>(stop - start); 
+	cout << "num_loop: " << num_loop << endl;
     cout << "Time taken by function: " << duration.count() << " microseconds" << endl; 
 	return 0;
 }
