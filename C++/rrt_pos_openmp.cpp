@@ -413,7 +413,7 @@ int main() {
 	qf.push_back(0);
 
 	vector<vector<float> > obstacles;
-	for (int i = 0; i < 500; i++) {
+	for (int i = 0; i < 2000; i++) {
 		vector<float> currObs; 
 		currObs.push_back(2); 
 		currObs.push_back(2); 

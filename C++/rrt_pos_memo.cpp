@@ -24,7 +24,10 @@ float L2 = 1;
 bool colValid[Q1RANGE][Q2RANGE]; 
 bool colMemo[Q1RANGE][Q2RANGE]; 
 
-int num_obs_calc; 
+int num_obs_calc = 0; 
+int num_loops = 0; 
+int num_hits = 0; 
+// int num_checked = 0; 
 
 vector<float> inverseKin(vector<float> ee_pos) {
 	float px = ee_pos[0];
@@ -224,9 +227,7 @@ vector<float> findNearestVert(vector<float> p_curr, vector<vector<float> > route
 void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	int num_iter = 0;
 	int max_iter = 10000;
-	float max_step = 0.05;
-
-	num_obs_calc = 0; 
+	float max_step = 0.1;
 
 	float q1_max = PI/2;
 	float q1_min = 0;
@@ -246,7 +247,7 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 	vector<int> edges;
 	edges.push_back(1);
 
-	int num_loops = 0; 
+	// int num_loops = 0; 
 
 	while (num_iter <= max_iter) {
 		num_loops++; 
@@ -292,8 +293,11 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 						continue;
 					}					
 				} else if (colMemo[q1_ind][q2_ind]) {
+					num_hits++; 
 					num_iter--;
 					continue; 
+				} else {
+					num_hits++; 
 				}
 
 				route.push_back(qf);
@@ -345,8 +349,11 @@ void rrt(vector<float> qs, vector<float> qf, vector<vector<float> > obs) {
 						continue;
 					}					
 				} else if (colMemo[q1_ind][q2_ind]) {
+					num_hits++; 
 					num_iter--;
 					continue; 
+				} else {
+					num_hits++; 
 				}
 
 				route.push_back(q_new);
@@ -413,11 +420,13 @@ int main() {
 	qf.push_back(0);
 
 	vector<vector<float> > obstacles;
-	vector<float> obs1;
-	obs1.push_back(2);
-	obs1.push_back(2);
-	obs1.push_back(0.25);
-	obstacles.push_back(obs1);
+	for (int i = 0; i < 1500; i++) {
+		vector<float> currObs; 
+		currObs.push_back(2); 
+		currObs.push_back(2); 
+		currObs.push_back(0.25);
+		obstacles.push_back(currObs);  
+	}
 
 	for (int i = 0; i < Q1RANGE; i++) {
 		for (int j = 0; j < Q2RANGE; j++) {
@@ -426,10 +435,14 @@ int main() {
 		}
 	}
 
+	auto start = chrono::high_resolution_clock::now(); 
 	rrt(qs, qf, obstacles);
+	auto stop = chrono::high_resolution_clock::now(); 
+	auto duration = chrono::duration_cast<chrono::microseconds>(stop - start); 
 
 	ofstream memo;
 	ofstream memoVal; 
+
 	memo.open("memo.csv");
 	memoVal.open("memoVal.csv");	
 	for (int row = 0; row < Q1RANGE; row++) {
@@ -441,5 +454,9 @@ int main() {
 		memoVal << "\n"; 
 	}
 
+	cout << "num_loops: " << num_loops << endl; 
+	cout << "num_hits: " << num_hits << endl; 
+	cout << "num_obs_cal: " << num_obs_calc << endl; 
+	cout << "Time taken by function: " << duration.count() << " microseconds" << endl; 
 	return 0;
 }
