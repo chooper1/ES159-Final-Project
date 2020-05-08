@@ -1,3 +1,0 @@
-# Resources
-
-Mostly from Thierry
